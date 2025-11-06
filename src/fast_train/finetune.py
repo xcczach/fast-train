@@ -480,7 +480,9 @@ def _merge_from_checkpoint_or_raise(
 # ----------------------------
 # Public API: single-call LoRA finetune
 # ----------------------------
-def _as_finetune_params(params: Union["FinetuneParams", Dict[str, Any]]) -> "FinetuneParams":
+def _as_finetune_params(
+    params: Union["FinetuneParams", Dict[str, Any]],
+) -> "FinetuneParams":
     """Coerce a dict or FinetuneParams into a FinetuneParams instance.
     Unknown keys in dict are ignored; defaults fill any missing keys.
     """
@@ -491,6 +493,7 @@ def _as_finetune_params(params: Union["FinetuneParams", Dict[str, Any]]) -> "Fin
         filtered = {k: v for k, v in params.items() if k in valid}
         return FinetuneParams(**filtered)  # type: ignore[arg-type]
     raise TypeError("params must be FinetuneParams or dict")
+
 
 def finetune_lora(
     model: Union[str, Any],
@@ -531,7 +534,9 @@ def finetune_lora(
     else:
         # Preloaded model object
         model_obj = model
-        model_name = getattr(model_obj, "name_or_path", None) or params.base_model_name_or_path
+        model_name = (
+            getattr(model_obj, "name_or_path", None) or params.base_model_name_or_path
+        )
         if not model_name:
             raise ValueError(
                 "When passing a model object, provide `params.base_model_name_or_path` to build the tokenizer and for merging."
@@ -546,7 +551,10 @@ def finetune_lora(
 
     model_obj.config.use_cache = False
     model_obj.config.pad_token_id = tokenizer.pad_token_id
-    if hasattr(model_obj, "generation_config") and model_obj.generation_config is not None:
+    if (
+        hasattr(model_obj, "generation_config")
+        and model_obj.generation_config is not None
+    ):
         model_obj.generation_config.pad_token_id = tokenizer.pad_token_id
         if tokenizer.bos_token_id is not None:
             model_obj.generation_config.bos_token_id = tokenizer.bos_token_id
@@ -554,7 +562,10 @@ def finetune_lora(
         model_obj.config.bos_token_id = tokenizer.bos_token_id
 
     model_obj.config.to_json_file(os.path.join(output_dir, "config.json"))
-    if hasattr(model_obj, "generation_config") and model_obj.generation_config is not None:
+    if (
+        hasattr(model_obj, "generation_config")
+        and model_obj.generation_config is not None
+    ):
         model_obj.generation_config.to_json_file(
             os.path.join(output_dir, "generation_config.json")
         )
@@ -587,18 +598,26 @@ def finetune_lora(
 
         ds_train_full = HFDataset.from_list(data)
     else:
-        raise TypeError("Unsupported `data` type. Provide path, Dataset, DatasetDict, or list of rows.")
+        raise TypeError(
+            "Unsupported `data` type. Provide path, Dataset, DatasetDict, or list of rows."
+        )
 
     n = len(ds_train_full)
     eval_size = max(1, int(params.eval_ratio * n)) if n > 0 else 1
     ds_train_full = ds_train_full.shuffle(seed=params.seed)
     ds_train = ds_train_full.select(range(eval_size, n)) if n > 1 else ds_train_full
-    ds_eval = ds_train_full.select(range(0, eval_size)) if n > 1 else ds_train_full.select(range(0, 0))
+    ds_eval = (
+        ds_train_full.select(range(0, eval_size))
+        if n > 1
+        else ds_train_full.select(range(0, 0))
+    )
 
     def _map_fn(batch):
         return _to_features(batch, tokenizer, params.max_seq_len, params.truncate_side)
 
-    ds_train_tok = ds_train.map(_map_fn, batched=True, remove_columns=ds_train.column_names)
+    ds_train_tok = ds_train.map(
+        _map_fn, batched=True, remove_columns=ds_train.column_names
+    )
     ds_eval_tok = (
         ds_eval.map(_map_fn, batched=True, remove_columns=ds_eval.column_names)
         if len(ds_eval) > 0
@@ -606,11 +625,15 @@ def finetune_lora(
     )
 
     # Collator
-    collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, label_pad_token_id=-100, padding=True)
+    collator = DataCollatorForSeq2Seq(
+        tokenizer=tokenizer, label_pad_token_id=-100, padding=True
+    )
 
     # Precision
     has_cuda = torch.cuda.is_available()
-    is_bf16 = bool(has_cuda and getattr(torch.cuda, "is_bf16_supported", lambda: False)())
+    is_bf16 = bool(
+        has_cuda and getattr(torch.cuda, "is_bf16_supported", lambda: False)()
+    )
     use_fp16 = bool(has_cuda and not is_bf16)
 
     training_args = TrainingArguments(
@@ -732,7 +755,12 @@ def main():
     # Print metrics in a JSON-like line for easy scraping
     metrics = result.get("metrics", {})
     try:
-        print({k: float(v) if isinstance(v, (int, float)) else v for k, v in metrics.items()})
+        print(
+            {
+                k: float(v) if isinstance(v, (int, float)) else v
+                for k, v in metrics.items()
+            }
+        )
     except Exception:
         print({"info": "Training completed."})
 
