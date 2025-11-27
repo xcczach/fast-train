@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from typing import Dict, List, Sequence
 
+import requests
 from ddgs import DDGS
 
 LOGGER = logging.getLogger(__name__)
@@ -37,7 +38,7 @@ def _search_with_retry(query: str) -> List[Dict[str, str]]:
     for attempt in range(1, _DEFAULT_RETRIES + 2):
         try:
             return _search_once(query)
-        except Exception as exc:  # pragma: no cover - network failures are non deterministic
+        except Exception as exc:  # pragma: no cover - non-deterministic network errors
             last_exception = exc
             LOGGER.warning(
                 "Search for '%s' failed on attempt %s/%s: %s",
@@ -79,3 +80,24 @@ async def start_text_search(
             for query in queries
         ]
         return await asyncio.gather(*tasks)
+
+
+def text_search(query: str) -> List[Dict[str, str]]:
+    """Convenience wrapper to run a single search synchronously."""
+    return _search_with_retry(query)
+
+
+def fetch_html(url: str, timeout: float = 10.0) -> str:
+    """
+    Retrieve the HTML content for a given URL using ``requests``.
+
+    Args:
+        url: The URL to download.
+        timeout: Optional timeout in seconds for the HTTP request.
+
+    Returns:
+        The response body decoded as text.
+    """
+    response = requests.get(url, timeout=timeout)
+    response.raise_for_status()
+    return response.text
